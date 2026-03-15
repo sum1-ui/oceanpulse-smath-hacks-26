@@ -1,0 +1,67 @@
+
+//pin layout
+#define PHSensorPin A0
+#define tempSensorPin A1
+#define turbPin A2
+const int LEDPin = 7;
+
+float PH;
+float tempVoltage;
+float tempInCelcius;
+long int turbidity;
+float turbidityVoltage;
+char simOrReal = 's'; //r for real, and s for sim
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(LEDPin, OUTPUT);
+}
+
+void loop() {
+  switch (simOrReal) {
+    case 's':
+      PH = phSimCalc();
+      turbidity = turbidityPhotoResistorLED();
+      tempInCelcius = tempCalc();
+      digitalWrite(LEDPin, LOW);
+      delay(15);
+    break;
+
+    case 'r':
+      PH = phRealCalc();
+      tempInCelcius = tempCalc();
+      turbidity = turbidityInNTU();
+      delay(15);
+    break;
+
+    default:
+      PH = phSimCalc();
+      tempInCelcius = tempCalc();
+      turbidity = turbidityPhotoResistorLED();
+      delay(15);
+    break;
+  }
+}
+
+float tempCalc() {
+  tempVoltage = (tempSensorPin * 5000 / 1024); //converting to mV from 0 - 1023
+  return ((tempVoltage - 500) / 10);  //calculating temperature
+}
+float phSimCalc() {
+  return (14 * analogRead(PHSensorPin) / 1023);
+}
+
+float turbidityPhotoResistorLED() {
+  digitalWrite(LEDPin, HIGH);
+  delay(15);
+  turbidity = analogRead(turbPin);
+  turbidity = map(turbidity, 1023, 0, 0, 100); //returns value from 0 to 100 of turbidity percent
+  return constrain(turbidity, 0, 100);
+}
+float turbidityInNTU() {
+  turbidityVoltage = (analogRead(turbPin) * 5 / 1024); //converting to V from 0 - 1023
+  return int(sq(-1120.4 * turbidityVoltage) + (5742 * turbidityVoltage) - 4352); //turbidity formula for translation from V to Nepholometric Turbidity Units (NTUs)
+}
+float phRealCalc() {
+  return analogRead(PHSensorPin);
+}
