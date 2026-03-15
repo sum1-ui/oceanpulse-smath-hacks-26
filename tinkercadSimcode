@@ -1,0 +1,104 @@
+//#include <GravityTDS.h>
+#include <EEPROM.h>
+#include <LiquidCrystal.h>
+#include <math.h>
+
+//pin layout
+#define PHSensorPin A0
+#define tempSensorPin A1
+#define turbPin A2
+#define totalDissolvedSolidsPin A3
+//GravityTDS gravityTds;
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+bool inOcean = false;
+float PH;
+float tempInCelcius;
+float turbidity;
+char simOrReal = 's'; //r for real, and s for sim
+float tdsValue;
+
+void setup() {
+  Serial.begin(9600);
+//  gravityTds.setAref(5.0);
+//  gravityTds.setAdcRange(1024);
+ // gravityTds.begin();
+  lcd.begin(16, 2);
+}
+
+void loop() {
+  switch (simOrReal) {
+    case 's':
+      PH = phSimCalc();
+      turbidity = turbidityPhotoResistorLED();
+      tempInCelcius = tempCalc();
+      delay(15);
+    break;
+
+    case 'r':
+      tempInCelcius = tempCalc();
+      turbidity = turbidityPhotoResistorLED();
+      tdsValue = calcRealTDS();
+    break;
+
+    default:
+      PH = phSimCalc();
+      tempInCelcius = tempCalc();
+      turbidity = turbidityPhotoResistorLED();
+    break;
+  }
+lcd.clear();
+lcd.setCursor(0,0);
+lcd.print("Temp: ");
+lcd.print(tempInCelcius);
+lcd.setCursor(0,1);
+lcd.print("PH: ");
+lcd.print(phSimCalc());
+
+
+}
+
+int scoreCalc(float ph, float tempInC, float turbidity, float TDSvalue) {
+  if (inOcean == true) {
+    if (abs(8.1 - ph) > 0.5){
+      PH = 0;
+    }
+    else {
+      PH = 33 - (abs(8.1 - ph)/0.5 * 33);
+    }
+    if (abs(17 - tempInC) > 10){
+      tempInC = 0;
+    }
+    else {
+      tempInC = 33 - (abs(17-tempInC)/10 * 33);
+    }
+    if (abs(20 - turbidity) > 20) {
+      turbidity = 0;
+    }
+    else {turbidity = 20 - (abs(20 - turbidity)/20 * 33);}
+    return (PH + tempInC + turbidity);
+  }
+  else return (PH + tempInC + turbidity);
+}
+float calcRealTDS() {
+  //gravityTds.setTemperature(tempCalc());
+ // gravityTds.update();
+//  return gravityTds.getTdsValue();
+  return 14.0;
+}
+
+float tempCalc() {
+  return (analogRead(tempSensorPin)-102)/2;
+}
+float phSimCalc() {
+  float phInAnalog = 1.0 + analogRead(PHSensorPin);
+  return (phInAnalog* 14/1024);
+}
+float turbidityPhotoResistorLED() {
+  delay(15);
+  float turbVar = analogRead(turbPin);
+  turbVar = turbVar * 5/1023; //converting from analog input to 0-5v
+  turbVar = turbVar/4.5; //4.5 here symbolises input when clear
+  turbVar = constrain(turbVar, 0.0, 1.0); 
+  return 100 - (turbVar * 100);
+}
