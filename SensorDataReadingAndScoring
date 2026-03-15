@@ -1,20 +1,30 @@
+#include <GravityTDS.h>
+#include <EEPROM.h>
+#include <LiquidCrystal.h>
+#include <math.h>
 
 //pin layout
 #define PHSensorPin A0
 #define tempSensorPin A1
 #define turbPin A2
-const int LEDPin = 7;
+#define totalDissolvedSolidsPin A3
+GravityTDS gravityTds;
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
+bool inOcean = false;
 float PH;
-float tempVoltage;
 float tempInCelcius;
-long int turbidity;
-float turbidityVoltage;
+float turbidity;
 char simOrReal = 's'; //r for real, and s for sim
+float tdsValue;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LEDPin, OUTPUT);
+  gravityTds.setPin(totalDissolvedSolidsPin);
+  gravityTds.setAref(5.0);
+  gravityTds.setAdcRange(1024);
+  gravityTds.begin();
+  lcd.begin(16, 2);
 }
 
 void loop() {
@@ -23,13 +33,13 @@ void loop() {
       PH = phSimCalc();
       turbidity = turbidityPhotoResistorLED();
       tempInCelcius = tempCalc();
-      digitalWrite(LEDPin, LOW);
       delay(15);
     break;
 
     case 'r':
       tempInCelcius = tempCalc();
-      turbidity = turbidityInNTU();
+      turbidity = turbidityPhotoResistorLED();
+      tdsValue = calcRealTDS();
     break;
 
     default:
@@ -40,24 +50,46 @@ void loop() {
   }
 }
 
+int scoreCalc(float ph, float tempInC, float turbidity, float TDSvalue) {
+  if (inOcean == true) {
+    if (abs(8.1 - ph) > 0.5){
+      PH = 0;
+    }
+    else {
+      PH = 33 - (abs(8.1 - ph)/0.5 * 33);
+    }
+    if (abs(17 - tempInC) > 10){
+      tempInC = 0;
+    }
+    else {
+      tempInC = 33 - (abs(17-tempInC)/10 * 33);
+    }
+    if (abs(20 - turbidity) > 20) {
+      turbidity = 0;
+    }
+    else {turbidity = 20 - (abs(20 - turbidity)/20 * 33);}
+    return (PH + tempInC + turbidity);
+  }
+  else return (PH + tempInC + turbidity);
+}
+float calcRealTDS() {
+  gravityTds.setTemperature(tempCalc());
+  gravityTds.update();
+  return gravityTds.getTdsValue();
+}
+
 float tempCalc() {
-  tempVoltage = (tempSensorPin * 5000 / 1024); //converting to mV from 0 - 1023
+  float tempVoltage = (analogRead(tempSensorPin) * 5000 / 1024); //converting to mV from 0 - 1023
   return ((tempVoltage - 500) / 10);  //calculating temperature
 }
 float phSimCalc() {
   return (14 * analogRead(PHSensorPin) / 1023);
 }
 float turbidityPhotoResistorLED() {
-  digitalWrite(LEDPin, HIGH);
   delay(15);
-  turbidity = analogRead(turbPin);
-  turbidity = map(turbidity, 1023, 0, 0, 100); //returns value from 0 to 100 of turbidity percent
-  return constrain(turbidity, 0, 100);
-}
-float turbidityInNTU() {
-  turbidityVoltage = (analogRead(turbPin) * 5 / 1024); //converting to V from 0 - 1023
-  return int(sq(-1120.4 * turbidityVoltage) + (5742 * turbidityVoltage) - 4352); //turbidity formula for translation from V to Nepholometric Turbidity Units (NTUs)
-}
-float phRealCalc() {
-  return analogRead(PHSensorPin);
+  float turbVar = analogRead(turbPin);
+  turbVar = turbVar * 5/1023; //converting from analog input to 0-5v
+  turbVar = turbVar/4.5; //4.5 here symbolises input when clear
+  turbVar = constrain(turbVar, 0.0, 1.0); 
+  return 100 - (turbVar * 100);
 }
