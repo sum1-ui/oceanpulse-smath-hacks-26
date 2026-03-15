@@ -28,17 +28,14 @@ void loop() {
     break;
 
     case 'r':
-      PH = phRealCalc();
       tempInCelcius = tempCalc();
       turbidity = turbidityInNTU();
-      delay(15);
     break;
 
     default:
       PH = phSimCalc();
       tempInCelcius = tempCalc();
       turbidity = turbidityPhotoResistorLED();
-      delay(15);
     break;
   }
 }
@@ -50,7 +47,6 @@ float tempCalc() {
 float phSimCalc() {
   return (14 * analogRead(PHSensorPin) / 1023);
 }
-
 float turbidityPhotoResistorLED() {
   digitalWrite(LEDPin, HIGH);
   delay(15);
